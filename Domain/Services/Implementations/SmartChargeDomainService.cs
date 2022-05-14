@@ -3,7 +3,7 @@ using Domain.Services.Interfaces;
 
 namespace Domain.Services.Implementations
 {
-    internal class SmartChargeDomainService : ISmartChargeDomainService
+    public class SmartChargeDomainService : ISmartChargeDomainService
     {
         public bool GroupCapacityIsValid(decimal capacity, Group group)
         {
