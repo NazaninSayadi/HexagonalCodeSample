@@ -3,6 +3,7 @@ using Application.Models;
 using Domain.Repositories;
 using Application.Services.Interfaces;
 using Domain.Entities;
+using Domain.Services.Interfaces;
 
 namespace Application.Services.Implementation
 {
@@ -11,14 +12,17 @@ namespace Application.Services.Implementation
         private readonly IChargeStationRepository _chargeStationRepository;
         private readonly IGroupRepository _groupRepository;
         private readonly IConnectorRepository _connectorRepository;
+        private readonly ISmartChargeDomainService _smartChargeDomainService;
+
 
         private readonly IMapper _mapper;
 
-        public ConnectorService(IMapper mapper, IConnectorRepository connectorRepository, IChargeStationRepository chargeStationRepository, IGroupRepository groupRepository)
+        public ConnectorService(IMapper mapper, IConnectorRepository connectorRepository, IChargeStationRepository chargeStationRepository, IGroupRepository groupRepository, ISmartChargeDomainService smartChargeDomainService)
         {
             _chargeStationRepository = chargeStationRepository;
             _connectorRepository = connectorRepository;
             _groupRepository = groupRepository;
+            _smartChargeDomainService = smartChargeDomainService;
             _mapper = mapper;
         }
 
@@ -26,11 +30,13 @@ namespace Application.Services.Implementation
         {
             var chargeStation = await ValidateChargeStationExistance(stationId);
 
-            ValidatePermittedConnectorPerStation(chargeStation);
+            if (!_smartChargeDomainService.ValidatePermittedConnectorPerStation(chargeStation))
+                throw new ArgumentException("We have reached the quorum of connectors.");
 
             var group = await ValidateGroupExistance(chargeStation.GroupId);
 
-            ValidateRemainingCapacity(MaxCurrent, group);
+            if (!_smartChargeDomainService.ValidateRemainingCapacity(MaxCurrent, group))
+                throw new ArgumentException("There is no capacity for this connector");
 
             var connector = new Connector
             {
@@ -69,7 +75,9 @@ namespace Application.Services.Implementation
             var connector = await ValidateConnectorExistance(id, stationId);
             var group = await ValidateGroupExistance(connector.ChargeStation.GroupId);
 
-            ValidateRemainingCapacity(MaxCurrent, group);
+            if (!_smartChargeDomainService.ValidateRemainingCapacity(MaxCurrent, group))
+                throw new ArgumentException("There is no capacity for this connector");
+
 
             connector.MaxCurrent = MaxCurrent;
             await _connectorRepository.Update();
@@ -94,12 +102,6 @@ namespace Application.Services.Implementation
             return chargeStation;
         }
 
-        private static void ValidatePermittedConnectorPerStation(ChargeStation chargeStation)
-        {
-            if (chargeStation.GetConnectorCount() == 5) //ToDo read from config
-                throw new ArgumentException("We have reached the quorum of connectors.");
-        }
-
         private async Task<Group> ValidateGroupExistance(Guid id)
         {
             var group = await _groupRepository.GetById(id);
@@ -107,13 +109,6 @@ namespace Application.Services.Implementation
                 throw new ArgumentException($"There is no group with this Id: {id}");
 
             return group;
-        }
-
-        private static void ValidateRemainingCapacity(decimal MaxCurrent, Group group)
-        {
-            var remainingCapacity = group.Capacity - group.SumConnectorsMaxCurrentInAllStation();
-            if (MaxCurrent > remainingCapacity)
-                throw new ArgumentException("There is no capacity for this connector");
         }
         #endregion
     }

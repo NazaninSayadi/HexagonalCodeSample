@@ -2,6 +2,7 @@ using Application.Services.Implementation;
 using AutoMapper;
 using Domain.Entities;
 using Domain.Repositories;
+using Domain.Services.Interfaces;
 using Moq;
 using System;
 using System.Collections.Generic;
@@ -12,14 +13,16 @@ namespace Application.Tests
     public class GroupServiceTests
     {
         private readonly Mock<IGroupRepository> _mockGroupRepository;
+        private readonly Mock<ISmartChargeDomainService> _mockSmartChargeDomainService;
         private readonly Mock<IMapper> _mockMapper;
         private readonly GroupService groupService;
 
         public GroupServiceTests()
         {
             _mockGroupRepository = new Mock<IGroupRepository>();
+            _mockSmartChargeDomainService = new Mock<ISmartChargeDomainService>();
             _mockMapper = new Mock<IMapper>();
-            groupService = new GroupService(_mockMapper.Object, _mockGroupRepository.Object);
+            groupService = new GroupService(_mockMapper.Object, _mockGroupRepository.Object, _mockSmartChargeDomainService.Object);
 
         }
 
@@ -97,9 +100,10 @@ namespace Application.Tests
             //Arrange
             var group = new Group("group", 1000);
             _mockGroupRepository.Setup(x => x.GetById(It.IsAny<Guid>())).ReturnsAsync(group);
+            _mockSmartChargeDomainService.Setup(x => x.GroupCapacityIsValid(group.Capacity, group)).Returns(true);
 
             //Action
-            await groupService.Update(group.Id, "modifiedGroup", 2000);
+            await groupService.Update(group.Id, "modifiedGroup", group.Capacity);
 
             //Assert
             _mockGroupRepository.Verify(x => x.Update(), Times.Once);

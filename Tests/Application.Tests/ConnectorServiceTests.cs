@@ -2,13 +2,11 @@ using Application.Services.Implementation;
 using AutoMapper;
 using Domain.Entities;
 using Domain.Repositories;
+using Domain.Services.Interfaces;
 using Moq;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Application.Tests
 {
@@ -18,8 +16,7 @@ namespace Application.Tests
         private readonly Mock<IChargeStationRepository> _mockChargeStationRepository;
         private readonly Mock<IConnectorRepository> _mockConnectorRepository;
         private readonly ConnectorService connectorService;
-
-
+        private readonly Mock<ISmartChargeDomainService> _mockSmartChargeDomainService;
         private Mock<IMapper> _mockMapper;
 
         public ConnectorServiceTests()
@@ -27,9 +24,10 @@ namespace Application.Tests
             _mockGroupRepository = new Mock<IGroupRepository>();
             _mockChargeStationRepository = new Mock<IChargeStationRepository>();
             _mockConnectorRepository = new Mock<IConnectorRepository>();
+            _mockSmartChargeDomainService = new Mock<ISmartChargeDomainService>();
             _mockMapper = new Mock<IMapper>();
 
-            connectorService = new ConnectorService(_mockMapper.Object, _mockConnectorRepository.Object, _mockChargeStationRepository.Object, _mockGroupRepository.Object);
+            connectorService = new ConnectorService(_mockMapper.Object, _mockConnectorRepository.Object, _mockChargeStationRepository.Object, _mockGroupRepository.Object, _mockSmartChargeDomainService.Object);
 
         }
 
@@ -45,10 +43,11 @@ namespace Application.Tests
 
             _mockChargeStationRepository.Setup(x => x.GetById(station.Id)).ReturnsAsync(station);
             _mockGroupRepository.Setup(x => x.GetById(group.Id)).ReturnsAsync(group);
+            _mockSmartChargeDomainService.Setup(x => x.ValidatePermittedConnectorPerStation(station)).Returns(true);
+            _mockSmartChargeDomainService.Setup(x => x.ValidateRemainingCapacity(connector.MaxCurrent,group)).Returns(true);
 
-
-            //Action
-            await connectorService.Add(connector.MaxCurrent, station.Id);
+             //Action
+             await connectorService.Add(connector.MaxCurrent, station.Id);
 
             //Assert
             _mockConnectorRepository.Verify(x => x.Add(It.IsAny<Connector>()), Times.Once);
@@ -179,12 +178,12 @@ namespace Application.Tests
             station.Connectors = new List<Connector>() { connector };
             group.ChargeStations = new List<ChargeStation>() { station };
 
-
             _mockConnectorRepository.Setup(x => x.GetById(connector.Id,station.Id)).ReturnsAsync(connector);
             _mockGroupRepository.Setup(x => x.GetById(group.Id)).ReturnsAsync(group);
+            _mockSmartChargeDomainService.Setup(x => x.ValidateRemainingCapacity(connector.MaxCurrent, group)).Returns(true);
 
             //Action
-            await connectorService.Update(connector.Id, connector.ChargeStationId, 300);
+            await connectorService.Update(connector.Id, connector.ChargeStationId, connector.MaxCurrent);
 
             //Assert
             _mockConnectorRepository.Verify(x => x.Update(), Times.Once);

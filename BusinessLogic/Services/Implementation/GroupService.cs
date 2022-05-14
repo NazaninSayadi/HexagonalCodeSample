@@ -3,20 +3,24 @@ using Application.Models;
 using Domain.Repositories;
 using Application.Services.Interfaces;
 using Domain.Entities;
+using Domain.Services.Interfaces;
 
 namespace Application.Services.Implementation
 {
     public class GroupService : IGroupService
     {
         private readonly IGroupRepository _groupRepository;
+        private readonly ISmartChargeDomainService _smartChargeDomainService;
+
         private readonly IMapper _mapper;
 
-        public GroupService(IMapper mapper, IGroupRepository groupRepository)
+        public GroupService(IMapper mapper, IGroupRepository groupRepository, ISmartChargeDomainService smartChargeDomainService)
         {
             _groupRepository = groupRepository;
+            _smartChargeDomainService = smartChargeDomainService;
             _mapper = mapper;
         }
-       
+
         public async Task<Guid> Add(string name, decimal capacity)
         {
             if (capacity <= 0)
@@ -52,20 +56,15 @@ namespace Application.Services.Implementation
             var group = await ValidateGroupExistance(id);
 
             if (group.Capacity != capacity)
-                if (GroupCapacityIsValid(capacity, group))
+            {
+                if (_smartChargeDomainService.GroupCapacityIsValid(capacity, group))
                     group.Capacity = capacity;
+                else
+                    throw new ArgumentException("Capacity must always be equal or greater than sum of its connectors max curent");
+            }
 
             group.Name = name;
             await _groupRepository.Update();
-        }
-
-        private static bool GroupCapacityIsValid(decimal capacity, Group group)
-        {
-            var SumConnectorsMaxCurrent = group.ChargeStations?.SelectMany(x => x.Connectors?.Select(c => c.MaxCurrent)).Sum();
-
-            if (SumConnectorsMaxCurrent != null && capacity < SumConnectorsMaxCurrent)
-                throw new ArgumentException("Capacity must always be equal or greater than sum of its connectors max curent");
-            return true;
         }
 
         private async Task<Group> ValidateGroupExistance(Guid id)
