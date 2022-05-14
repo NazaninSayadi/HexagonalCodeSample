@@ -24,18 +24,6 @@ namespace Infrastructure.Repositories.Base
             _context.Set<T>().Remove(entity);
             await _context.SaveChangesAsync();
         }
-
-        public async Task<IReadOnlyList<T>> Get(params Expression<Func<T, object>>[] includes)
-        {
-            var set = _context.Set<T>().AsQueryable();
-
-            if (includes != null)
-                foreach (var include in includes)
-                    set = set.Include(include);
-
-            return await set.ToListAsync();
-        }
-
         public async Task Update()
         {
             await _context.SaveChangesAsync();
